@@ -179,7 +179,9 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 
 .tbl{width:100%;border-collapse:collapse}
 .tbl th{text-align:left;font-size:11px;font-weight:700;color:var(--fg2);padding:8px 4px 8px 0;border-bottom:2px solid var(--border);text-transform:uppercase;letter-spacing:0.03em}
-.tbl th.r,.tbl td.r{text-align:right;padding-right:0;padding-left:4px}
+.tbl th.r,.tbl td.r{text-align:right;padding-right:0;padding-left:4px;white-space:nowrap}
+.tbl td.r{font-size:13px}
+.tbl td .tag{white-space:nowrap}
 .tbl td{padding:10px 4px 10px 0;border-bottom:1px solid var(--border);font-size:14px}
 .tbl tr:last-child td{border-bottom:none}
 .tag{display:inline-block;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600}
@@ -280,6 +282,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .transfer-btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
 /* Recordatorios */
+.app-ver{text-align:center;font-size:12px;color:var(--fg3);padding:4px 0 8px}
 .dd-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)}
 .dd-row:last-of-type{border-bottom:none}
 .dd-name{font-weight:600;font-size:14px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -387,6 +390,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
     <div class="bk-msg" id="bkMsg"></div>
     <textarea class="bk-text" id="bkText" readonly hidden></textarea>
   </div>
+  <p class="app-ver">Versión 3</p>
 </div>
 
 <nav class="bnav">
@@ -1015,10 +1019,10 @@ function movTable(items){
   return `<table class="tbl">
     <tr><th>Fecha</th><th>Concepto</th><th>Tipo</th><th class="r">Monto</th></tr>
     ${items.map(m=>`<tr>
-      <td class="m" style="color:var(--fg2);font-size:12px;white-space:nowrap">${fdt(m.date)}</td>
+      <td style="color:var(--fg2);font-size:12px;white-space:nowrap">${fdt(m.date)}</td>
       <td style="font-weight:500">${esc(m.desc)}</td>
       <td><span class="tag ${m.type==='income'?'tag-in':m.type==='debt'?'tag-debt':m.type==='transfer'?'tag-transfer':'tag-out'}">${esc(m.cat)}</span></td>
-      <td class="r m" style="font-weight:600;color:${m.type==='transfer'?'var(--blue)':m.amount>=0?'var(--green)':'var(--red)'}">${m.type==='transfer'?'—':(m.amount>=0?'+':'')+''+f$(m.amount)}</td>
+      <td class="r m" style="font-weight:600;color:${m.type==='transfer'?'var(--blue)':m.amount>=0?'var(--green)':'var(--red)'}">${m.type==='transfer'?'—':(m.amount>=0?'+':'-')+f$(Math.abs(m.amount))}</td>
     </tr>`).join('')}
   </table>`;
 }

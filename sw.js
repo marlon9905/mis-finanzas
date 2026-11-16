@@ -1,6 +1,6 @@
 // Mis Finanzas: guarda la app en el iPhone para que abra sin internet.
 // Sube VERSION cada vez que cambies archivos para que el teléfono tome la nueva versión.
-const VERSION = 'v2';
+const VERSION = 'v3';
 importScripts('reminders.js');
 
 const SHELL = 'finanzas-shell-' + VERSION;
@@ -8,7 +8,7 @@ const FONTS = 'finanzas-fonts';
 const FILES = ['./', 'index.html', 'reminders.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(SHELL).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(SHELL).then(c => c.addAll(FILES.map(f => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -39,7 +39,7 @@ self.addEventListener('fetch', e => {
   // La página: primero la red (para recibir actualizaciones), si no hay internet la copia guardada.
   if (req.mode === 'navigate') {
     e.respondWith(
-      fetch(req).then(res => {
+      fetch(req.url, { cache: 'no-cache' }).then(res => {
         if (res.ok) { const copy = res.clone(); caches.open(SHELL).then(c => c.put('index.html', copy)); }
         return res;
       }).catch(() => caches.match('index.html'))
