@@ -390,7 +390,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
     <div class="bk-msg" id="bkMsg"></div>
     <textarea class="bk-text" id="bkText" readonly hidden></textarea>
   </div>
-  <p class="app-ver">Versión 6</p>
+  <p class="app-ver">Versión 7</p>
 </div>
 
 <nav class="bnav">
@@ -1337,35 +1337,68 @@ function loadSubscription(){
   if(!pushSupported())return;
   navigator.serviceWorker.ready.then(r=>r.pushManager.getSubscription()).then(s=>{_pushSub=s;renderReminders();fetchAjustes()}).catch(()=>{});
 }
-// Ajustes remotos: un archivo cifrado que solo este iPhone puede abrir (la llave es
-// el secreto de su registro de avisos). Sirve para fijar días de pago sin escribirlos a mano.
+// Ajustes remotos: archivos cifrados que solo este iPhone puede abrir (la llave es
+// el secreto de su registro de avisos). Sirven para fijar días de pago y corregir
+// registros sin escribirlos a mano. Cada archivo se aplica una sola vez por número.
+async function openBox(file,counter){
+  if(!_pushSub||!window.crypto||!crypto.subtle)return null;
+  const auth=JSON.parse(JSON.stringify(_pushSub)).keys.auth;
+  const res=await fetch(file,{cache:'no-cache'});
+  if(!res.ok)return null;
+  const box=await res.json();
+  if(!box.id||box.id<=(D[counter]||0))return null;
+  const bytes=t=>Uint8Array.from(atob(t),c=>c.charCodeAt(0));
+  const key=await crypto.subtle.importKey('raw',await crypto.subtle.digest('SHA-256',new TextEncoder().encode(auth)),'AES-GCM',false,['decrypt']);
+  const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:bytes(box.iv)},key,bytes(box.data));
+  return {id:box.id,body:JSON.parse(new TextDecoder().decode(plain))};
+}
 async function fetchAjustes(){
+  const norm=t=>String(t).toLowerCase().trim();
+  const said=[];
   try{
-    if(!_pushSub||!window.crypto||!crypto.subtle)return;
-    const auth=JSON.parse(JSON.stringify(_pushSub)).keys.auth;
-    const res=await fetch('ajustes.enc.json',{cache:'no-cache'});
-    if(!res.ok)return;
-    const box=await res.json();
-    if(!box.id||box.id<=(D._ajustes||0))return;
-    const bytes=t=>Uint8Array.from(atob(t),c=>c.charCodeAt(0));
-    const key=await crypto.subtle.importKey('raw',await crypto.subtle.digest('SHA-256',new TextEncoder().encode(auth)),'AES-GCM',false,['decrypt']);
-    const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:bytes(box.iv)},key,bytes(box.data));
-    const a=JSON.parse(new TextDecoder().decode(plain));
-    let n=0;
-    const norm=t=>String(t).toLowerCase().trim();
-    const apply=(list,map)=>{
-      Object.keys(map||{}).forEach(name=>{
-        const x=list.find(i=>norm(i.name)===norm(name));if(!x)return;
-        const v=map[name];
-        if(v>=1&&v<=31)x.dueDay=v;else delete x.dueDay;
-        n++;
-      });
-    };
-    if(a.dueDays){apply(D.fixedExpenses,a.dueDays.fixed);apply(D.debts,a.dueDays.debts)}
-    D._ajustes=box.id;
-    render();
-    if(n)remSay('Días de pago actualizados: '+n+'. Revísalos en "Días de pago".');
+    const b=await openBox('ajustes.enc.json','_ajustes');
+    if(b){
+      let n=0;
+      const apply=(list,map)=>{
+        Object.keys(map||{}).forEach(name=>{
+          const x=list.find(i=>norm(i.name)===norm(name));if(!x)return;
+          const v=map[name];
+          if(v>=1&&v<=31)x.dueDay=v;else delete x.dueDay;
+          n++;
+        });
+      };
+      if(b.body.dueDays){apply(D.fixedExpenses,b.body.dueDays.fixed);apply(D.debts,b.body.dueDays.debts)}
+      D._ajustes=b.id;
+      if(n)said.push('Días de pago actualizados: '+n+'.');
+    }
   }catch(e){}
+  try{
+    const b=await openBox('datos.enc.json','_datos');
+    if(b){
+      const a=b.body;let added=0,moved=0;
+      const catId=name=>{
+        let c=D.categories.find(x=>norm(x.name)===norm(name));
+        if(!c){c={id:nid(),name:name,budget:0};D.categories.push(c)}
+        return c.id;
+      };
+      // Agrega registros de gasto sin tocar saldos (el saldo ya los refleja).
+      (a.addExpenses||[]).forEach(e=>{
+        if(D.expenses.some(x=>norm(x.desc)===norm(e.desc)&&x.amount===e.amount&&x.date===e.date))return;
+        const acc=D.accounts.find(x=>norm(x.name)===norm(e.account));
+        D.expenses.push({id:nid(),desc:e.desc,catId:catId(e.cat),amount:e.amount,accountId:acc?acc.id:0,date:e.date});
+        added++;
+      });
+      // Cambia la categoría de un gasto, solo si el registro sigue siendo el mismo.
+      (a.setCategory||[]).forEach(r=>{
+        const x=D.expenses.find(e=>e.id===r.id&&norm(e.desc)===norm(r.desc));if(!x)return;
+        const id=catId(r.cat);if(x.catId!==id){x.catId=id;moved++}
+      });
+      D._datos=b.id;
+      if(added)said.push(added===1?'Se restauró 1 gasto.':'Se restauraron '+added+' gastos.');
+      if(moved)said.push(moved===1?'Se reorganizó 1 gasto.':'Se reorganizaron '+moved+' gastos.');
+    }
+  }catch(e){}
+  if(said.length){render();remSay(said.join(' '))}
 }
 function enableReminders(){
   Notification.requestPermission().then(p=>{
