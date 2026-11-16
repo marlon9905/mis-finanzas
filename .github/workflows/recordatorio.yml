@@ -1,0 +1,31 @@
+name: Recordatorio diario
+
+on:
+  schedule:
+    # 13:00 UTC = 8:00 a. m. en Colombia. GitHub puede tardar varios minutos en arrancar.
+    - cron: '0 13 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar web-push
+        run: npm install --no-save --no-audit --no-fund web-push@3.6.7
+        working-directory: .github/push
+      - name: Enviar aviso
+        run: node send.mjs
+        working-directory: .github/push
+        env:
+          VAPID_SUBJECT: https://marlon9905.github.io/mis-finanzas/
+          VAPID_PUBLIC_KEY: BIvPXUL521NAxRSurqY1e1du06bgrncTOgJ3NcggjCqHXuRKCcocFeYy3bp8XlgMYvH9BJRwVmWq63m6rdwX5tQ
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          PUSH_SUBSCRIPTION: ${{ secrets.PUSH_SUBSCRIPTION }}
