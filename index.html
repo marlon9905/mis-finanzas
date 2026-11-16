@@ -390,7 +390,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
     <div class="bk-msg" id="bkMsg"></div>
     <textarea class="bk-text" id="bkText" readonly hidden></textarea>
   </div>
-  <p class="app-ver">Versión 4</p>
+  <p class="app-ver">Versión 5</p>
 </div>
 
 <nav class="bnav">
@@ -1327,7 +1327,7 @@ function renderReminders(){
   }
   if(_pushSub){
     note.textContent='Avisos activos en este iPhone. Cada mañana te llega un resumen de lo que vence.';
-    act.innerHTML=days+'<button class="btn btn-sm btn-ghost" onclick="testReminder()">Probar aviso</button><button class="btn btn-sm btn-ghost" onclick="copySubscription()">Copiar clave del iPhone</button>';
+    act.innerHTML=days+'<button class="btn btn-sm btn-ghost" onclick="testReminder()">Probar aviso</button><button class="btn btn-sm btn-ghost" onclick="copySubscription()">Copiar código de avisos</button>';
   } else {
     note.textContent='Recibe cada mañana un aviso con los pagos que vencen hoy, los atrasados y los próximos.';
     act.innerHTML='<button class="btn btn-sm" onclick="enableReminders()">Activar avisos</button>'+days;
@@ -1342,7 +1342,7 @@ function enableReminders(){
     if(p!=='granted'){renderReminders();remSay('No se activaron: el permiso de avisos no fue aceptado.',true);return}
     return navigator.serviceWorker.ready
       .then(r=>r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64ToBytes(VAPID_PUBLIC)}))
-      .then(s=>{_pushSub=s;renderReminders();remSay('Avisos activados. Falta un paso: toca "Copiar clave del iPhone".')});
+      .then(s=>{_pushSub=s;renderReminders();remSay('Avisos activados. Falta un paso: toca "Copiar código de avisos" y pégalo en tu chat con Claude.')});
   }).catch(e=>remSay('No se pudieron activar los avisos: '+(e&&e.message?e.message:'error desconocido'),true));
 }
 function copySubscription(){
@@ -1350,10 +1350,10 @@ function copySubscription(){
   const txt=JSON.stringify(_pushSub);
   const fallback=()=>{
     const ta=document.getElementById('remText');ta.hidden=false;ta.value=txt;ta.focus();ta.select();
-    remSay('No se pudo copiar sola. Mantén presionado el texto, elige Seleccionar todo y Copiar.',true);
+    remSay('No se pudo copiar solo. Mantén presionado el texto, elige Seleccionar todo y Copiar.',true);
   };
   if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(txt).then(()=>remSay('Clave copiada. Pégala en GitHub como PUSH_SUBSCRIPTION.'),fallback);
+    navigator.clipboard.writeText(txt).then(()=>remSay('Código copiado. Pégalo en tu chat con Claude.'),fallback);
   } else fallback();
 }
 function testReminder(){

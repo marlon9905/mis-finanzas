@@ -5,6 +5,11 @@ on:
     # 13:00 UTC = 8:00 a. m. en Colombia. GitHub puede tardar varios minutos en arrancar.
     - cron: '0 13 * * *'
   workflow_dispatch:
+  # También corre al registrar o cambiar el iPhone, como prueba inmediata.
+  push:
+    branches: [main]
+    paths:
+      - '.github/push/subscription.enc.json'
 
 permissions:
   contents: read
@@ -28,4 +33,3 @@ jobs:
           VAPID_SUBJECT: https://marlon9905.github.io/mis-finanzas/
           VAPID_PUBLIC_KEY: BIvPXUL521NAxRSurqY1e1du06bgrncTOgJ3NcggjCqHXuRKCcocFeYy3bp8XlgMYvH9BJRwVmWq63m6rdwX5tQ
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
-          PUSH_SUBSCRIPTION: ${{ secrets.PUSH_SUBSCRIPTION }}
