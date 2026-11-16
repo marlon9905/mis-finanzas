@@ -1,9 +1,11 @@
 // Mis Finanzas: guarda la app en el iPhone para que abra sin internet.
 // Sube VERSION cada vez que cambies archivos para que el teléfono tome la nueva versión.
-const VERSION = 'v1';
+const VERSION = 'v2';
+importScripts('reminders.js');
+
 const SHELL = 'finanzas-shell-' + VERSION;
 const FONTS = 'finanzas-fonts';
-const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
+const FILES = ['./', 'index.html', 'reminders.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(SHELL).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
@@ -46,4 +48,25 @@ self.addEventListener('fetch', e => {
   }
   // Lo demás: copia guardada, y si no existe, la red.
   e.respondWith(caches.match(req).then(hit => hit || fetch(req)));
+});
+
+// Aviso diario: el servidor solo manda un "toque" vacío; el mensaje se arma aquí
+// con el resumen que la app dejó guardado en el teléfono.
+self.addEventListener('push', e => {
+  e.waitUntil(
+    remLoad().then(snap => {
+      const b = remBrief(snap, new Date());
+      return self.registration.showNotification(b.title, { body: b.body, icon: 'icons/icon-192.png', tag: 'finanzas-diario' });
+    })
+  );
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      for (const c of list) if ('focus' in c) return c.focus();
+      return self.clients.openWindow('./');
+    })
+  );
 });

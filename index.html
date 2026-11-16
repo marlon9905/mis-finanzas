@@ -279,6 +279,16 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .wit-btn:active{opacity:.7}
 .transfer-btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
+/* Recordatorios */
+.dd-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)}
+.dd-row:last-of-type{border-bottom:none}
+.dd-name{font-weight:600;font-size:14px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dd-row input{width:64px;flex-shrink:0;padding:8px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);font-family:var(--mono);font-size:16px;text-align:center}
+.dd-row input:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px var(--green-soft)}
+.dd-group{font-size:12px;font-weight:700;color:var(--fg2);margin:14px 0 2px}
+.dd-group:first-of-type{margin-top:0}
+.fijo-day{color:var(--blue);font-weight:600}
+
 /* Respaldo */
 .warn-card{background:var(--red-soft);color:var(--red);font-size:13px;font-weight:600;box-shadow:none}
 .fg textarea{width:100%;height:140px;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);font-family:var(--mono);font-size:16px;resize:none}
@@ -363,6 +373,13 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
     <button class="btn btn-sm" onclick="modal('expense')">+ Gasto</button>
   </div>
   <div class="card"><div class="tbl-wrap" id="allMov"></div></div>
+  <div class="card" id="remCard">
+    <div class="card-title">Recordatorios de pago</div>
+    <p class="bk-note" id="remNote"></p>
+    <div class="bk-actions" id="remActions"></div>
+    <div class="bk-msg" id="remMsg"></div>
+    <textarea class="bk-text" id="remText" readonly hidden></textarea>
+  </div>
   <div class="card" id="backupCard">
     <div class="card-title">Respaldo de datos</div>
     <p class="bk-note" id="bkNote">Tus datos viven solo en este iPhone. Guarda un respaldo de vez en cuando.</p>
@@ -395,6 +412,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
   <div class="modal" id="mc"></div>
 </div>
 
+<script src="reminders.js"></script>
 <script>
 const K='finanzas_v4';
 let D;
@@ -405,6 +423,7 @@ function sv(){
   try{localStorage.setItem(K,JSON.stringify(D));_saveFailed=false}
   catch(e){_saveFailed=true}
   const w=document.getElementById('saveWarn');if(w)w.hidden=!_saveFailed;
+  if(typeof remSave==='function')remSave(remBuild(D));
 }
 D=ld()||seed();
 _viewMonth=cm();
@@ -511,7 +530,7 @@ const CAT_COLORS=['#1B6B4A','#2D5A8E','#C23A3A','#9A6C1E','#7B4BB3','#D97040','#
 
 function render(){
   renderAccounts();renderFijos();renderDebtSummary();renderRecentMov();
-  renderDebts();renderGastosTab();renderAllMov();renderSavingsGoals();
+  renderDebts();renderGastosTab();renderAllMov();renderSavingsGoals();renderReminders();
   document.getElementById('totalBal').textContent=f$(D.accounts.reduce((s,a)=>s+a.balance,0));
   document.getElementById('welcome').hidden=!!(D.accounts.length||D.expenses.length||D.incomes.length||D.debts.length);
   sv();
@@ -676,7 +695,7 @@ function renderFijos(){
   const items=[];
   D.fixedExpenses.forEach(f=>{
     const rec=ps.fixed.find(x=>x.id===f.id);
-    items.push({type:'fixed',id:f.id,name:f.name,entity:f.entity,baseAmt:f.amount,paid:!!rec,paidAmt:rec?rec.amount:0,paidAccId:rec?rec.accountId:null});
+    items.push({type:'fixed',id:f.id,name:f.name,entity:f.entity,dueDay:f.dueDay,baseAmt:f.amount,paid:!!rec,paidAmt:rec?rec.amount:0,paidAccId:rec?rec.accountId:null});
   });
   D.debts.forEach(d=>{
     const sch=d.schedule.find(x=>x.month===month);
@@ -686,7 +705,7 @@ function renderFijos(){
     if(displayAmt>0||d.balance>0){
       const rec=ps.debts.find(x=>x.id===d.id);
       const isThisMonth=amt>0;
-      items.push({type:'debts',id:d.id,name:d.name,entity:d.entity||''+((!isThisMonth&&nextSch)?' · Próx: '+fmo(nextSch.month):''),baseAmt:displayAmt,paid:!!rec,paidAmt:rec?rec.amount:0,paidAccId:rec?rec.accountId:null,future:!isThisMonth});
+      items.push({type:'debts',id:d.id,name:d.name,entity:d.entity||''+((!isThisMonth&&nextSch)?' · Próx: '+fmo(nextSch.month):''),dueDay:d.dueDay,baseAmt:displayAmt,paid:!!rec,paidAmt:rec?rec.amount:0,paidAccId:rec?rec.accountId:null,future:!isThisMonth});
     }
   });
 
@@ -708,7 +727,7 @@ function renderFijos(){
         </div>
         <div class="fijo-info">
           <div class="fijo-name">${esc(f.name)}${f.future?' <span style="font-size:10px;color:var(--blue);background:var(--blue-soft);padding:1px 6px;border-radius:4px;font-weight:500;margin-left:6px">Próx. mes</span>':''}</div>
-          ${f.entity?`<div class="fijo-entity">${esc(f.entity)}</div>`:''}
+          ${(f.entity||f.dueDay)?`<div class="fijo-entity">${f.dueDay?`<span class="fijo-day">Día ${f.dueDay}</span>`:''}${f.dueDay&&f.entity?' · ':''}${f.entity?esc(f.entity):''}</div>`:''}
         </div>
         <div class="fijo-amt m pending">${f.baseAmt>0?f$(f.baseAmt):'Variable'}</div>
       </div>`).join('')}
@@ -1125,6 +1144,17 @@ function modal(type,id){
         <div class="fg"><label>Monto a ahorrar</label><input id="f1" type="text" inputmode="numeric" data-money required></div>
         <div class="m-actions"><button type="button" class="btn btn-ghost" onclick="closeM()">Cancelar</button><button type="submit" class="btn">Ahorrar</button></div>
       </form>`;
+  } else if(type==='dueDays'){
+    const row=(t,x)=>`<div class="dd-row"><span class="dd-name">${esc(x.name)}</span><input id="dd-${t}-${x.id}" type="text" inputmode="numeric" maxlength="2" placeholder="—" value="${x.dueDay||''}" aria-label="Día de pago de ${esc(x.name)}"></div>`;
+    const debts=D.debts.filter(d=>d.balance>0);
+    m.innerHTML=`<h3>Días de pago</h3>
+      <form onsubmit="saveDueDays(event)">
+        <p class="bk-note">Escribe el día del mes (1 a 31) en que vence cada pago. Déjalo vacío si no quieres aviso.</p>
+        ${D.fixedExpenses.length?'<div class="dd-group">Gastos fijos</div>'+D.fixedExpenses.map(f=>row('fixed',f)).join(''):''}
+        ${debts.length?'<div class="dd-group">Deudas</div>'+debts.map(d=>row('debts',d)).join(''):''}
+        ${!D.fixedExpenses.length&&!debts.length?'<div class="empty">Aún no tienes gastos fijos ni deudas.</div>':''}
+        <div class="m-actions"><button type="button" class="btn btn-ghost" onclick="closeM()">Cancelar</button><button type="submit" class="btn">Guardar</button></div>
+      </form>`;
   } else if(type==='restore'){
     const has=D.accounts.length||D.expenses.length||D.incomes.length||D.debts.length;
     m.innerHTML=`<h3>Restaurar respaldo</h3>
@@ -1280,6 +1310,75 @@ function copyBackup(){
   } else fallback();
 }
 
+// Recordatorios
+const VAPID_PUBLIC='BIvPXUL521NAxRSurqY1e1du06bgrncTOgJ3NcggjCqHXuRKCcocFeYy3bp8XlgMYvH9BJRwVmWq63m6rdwX5tQ';
+let _pushSub=null;
+function remSay(t,err){const el=document.getElementById('remMsg');el.textContent=t;el.classList.toggle('err',!!err)}
+function b64ToBytes(s){const pad='='.repeat((4-s.length%4)%4);const raw=atob((s+pad).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(raw,c=>c.charCodeAt(0))}
+function pushSupported(){return 'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window}
+function dueDayCount(){return D.fixedExpenses.filter(f=>f.dueDay).length+D.debts.filter(d=>d.dueDay&&d.balance>0).length}
+function renderReminders(){
+  const note=document.getElementById('remNote'),act=document.getElementById('remActions');
+  const n=dueDayCount();
+  const days=`<button class="btn btn-sm ${_pushSub?'btn-ghost':''}" onclick="modal('dueDays')">Días de pago${n?' ('+n+')':''}</button>`;
+  if(!pushSupported()){
+    note.textContent='Para recibir avisos, abre la app desde el ícono de la pantalla de inicio de tu iPhone (no desde Safari).';
+    act.innerHTML=days;return;
+  }
+  if(Notification.permission==='denied'){
+    note.textContent='Los avisos están bloqueados. Actívalos en Ajustes del iPhone, Notificaciones, Finanzas.';
+    act.innerHTML=days;return;
+  }
+  if(_pushSub){
+    note.textContent='Avisos activos en este iPhone. Cada mañana te llega un resumen de lo que vence.';
+    act.innerHTML=days+'<button class="btn btn-sm btn-ghost" onclick="testReminder()">Probar aviso</button><button class="btn btn-sm btn-ghost" onclick="copySubscription()">Copiar clave del iPhone</button>';
+  } else {
+    note.textContent='Recibe cada mañana un aviso con los pagos que vencen hoy, los atrasados y los próximos.';
+    act.innerHTML='<button class="btn btn-sm" onclick="enableReminders()">Activar avisos</button>'+days;
+  }
+}
+function loadSubscription(){
+  if(!pushSupported())return;
+  navigator.serviceWorker.ready.then(r=>r.pushManager.getSubscription()).then(s=>{_pushSub=s;renderReminders()}).catch(()=>{});
+}
+function enableReminders(){
+  Notification.requestPermission().then(p=>{
+    if(p!=='granted'){renderReminders();remSay('No se activaron: el permiso de avisos no fue aceptado.',true);return}
+    return navigator.serviceWorker.ready
+      .then(r=>r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64ToBytes(VAPID_PUBLIC)}))
+      .then(s=>{_pushSub=s;renderReminders();remSay('Avisos activados. Falta un paso: toca "Copiar clave del iPhone".')});
+  }).catch(e=>remSay('No se pudieron activar los avisos: '+(e&&e.message?e.message:'error desconocido'),true));
+}
+function copySubscription(){
+  if(!_pushSub)return;
+  const txt=JSON.stringify(_pushSub);
+  const fallback=()=>{
+    const ta=document.getElementById('remText');ta.hidden=false;ta.value=txt;ta.focus();ta.select();
+    remSay('No se pudo copiar sola. Mantén presionado el texto, elige Seleccionar todo y Copiar.',true);
+  };
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(()=>remSay('Clave copiada. Pégala en GitHub como PUSH_SUBSCRIPTION.'),fallback);
+  } else fallback();
+}
+function testReminder(){
+  const b=remBrief(remBuild(D),new Date());
+  navigator.serviceWorker.ready
+    .then(r=>r.showNotification(b.title,{body:b.body,icon:'icons/icon-192.png',tag:'finanzas-diario'}))
+    .then(()=>remSay('Aviso de prueba enviado. Así se verá el de cada mañana.'),()=>remSay('No se pudo mostrar el aviso de prueba.',true));
+}
+function saveDueDays(e){
+  e.preventDefault();
+  const set=(t,x)=>{
+    const el=document.getElementById('dd-'+t+'-'+x.id);if(!el)return;
+    const v=parseInt(el.value,10);
+    if(v>=1&&v<=31)x.dueDay=v;else delete x.dueDay;
+  };
+  D.fixedExpenses.forEach(f=>set('fixed',f));
+  D.debts.forEach(d=>set('debts',d));
+  closeM();render();
+  remSay(dueDayCount()?'Días de pago guardados.':'');
+}
+
 function shareBackup(){
   const name='finanzas-respaldo-'+td()+'.json';
   const txt=JSON.stringify(D);
@@ -1313,7 +1412,7 @@ function restoreBackup(e){
 }
 
 render();
-if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})})}
+if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').then(loadSubscription).catch(()=>{})})}
 </script>
 
 </body>
