@@ -390,7 +390,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
     <div class="bk-msg" id="bkMsg"></div>
     <textarea class="bk-text" id="bkText" readonly hidden></textarea>
   </div>
-  <p class="app-ver">Versión 3</p>
+  <p class="app-ver">Versión 4</p>
 </div>
 
 <nav class="bnav">
@@ -489,14 +489,6 @@ function runMigrations(){
         if(correctCat!==null&&exp.catId!==correctCat)exp.catId=correctCat;
       });
     });
-  });
-  const autoIds=new Set();
-  Object.values(D.paidStatus).forEach(ps=>{
-    ['fixed','debts'].forEach(type=>{if(!ps[type])return;ps[type].forEach(rec=>{if(rec.expenseId)autoIds.add(rec.expenseId)})});
-  });
-  D.expenses=D.expenses.filter(e=>{
-    if(autoIds.has(e.id))return true;
-    return !D.expenses.some(a=>autoIds.has(a.id)&&a.catId===e.catId&&a.amount===e.amount&&a.date.substring(0,7)===e.date.substring(0,7)&&a.id!==e.id);
   });
   try{localStorage.setItem(K,JSON.stringify(D))}catch(e){}
 }

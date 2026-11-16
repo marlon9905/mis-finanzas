@@ -1,6 +1,6 @@
 // Mis Finanzas: guarda la app en el iPhone para que abra sin internet.
 // Sube VERSION cada vez que cambies archivos para que el teléfono tome la nueva versión.
-const VERSION = 'v3';
+const VERSION = 'v4';
 importScripts('reminders.js');
 
 const SHELL = 'finanzas-shell-' + VERSION;
