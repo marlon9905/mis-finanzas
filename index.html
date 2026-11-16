@@ -390,7 +390,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
     <div class="bk-msg" id="bkMsg"></div>
     <textarea class="bk-text" id="bkText" readonly hidden></textarea>
   </div>
-  <p class="app-ver">Versión 5</p>
+  <p class="app-ver">Versión 6</p>
 </div>
 
 <nav class="bnav">
@@ -1335,7 +1335,37 @@ function renderReminders(){
 }
 function loadSubscription(){
   if(!pushSupported())return;
-  navigator.serviceWorker.ready.then(r=>r.pushManager.getSubscription()).then(s=>{_pushSub=s;renderReminders()}).catch(()=>{});
+  navigator.serviceWorker.ready.then(r=>r.pushManager.getSubscription()).then(s=>{_pushSub=s;renderReminders();fetchAjustes()}).catch(()=>{});
+}
+// Ajustes remotos: un archivo cifrado que solo este iPhone puede abrir (la llave es
+// el secreto de su registro de avisos). Sirve para fijar días de pago sin escribirlos a mano.
+async function fetchAjustes(){
+  try{
+    if(!_pushSub||!window.crypto||!crypto.subtle)return;
+    const auth=JSON.parse(JSON.stringify(_pushSub)).keys.auth;
+    const res=await fetch('ajustes.enc.json',{cache:'no-cache'});
+    if(!res.ok)return;
+    const box=await res.json();
+    if(!box.id||box.id<=(D._ajustes||0))return;
+    const bytes=t=>Uint8Array.from(atob(t),c=>c.charCodeAt(0));
+    const key=await crypto.subtle.importKey('raw',await crypto.subtle.digest('SHA-256',new TextEncoder().encode(auth)),'AES-GCM',false,['decrypt']);
+    const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:bytes(box.iv)},key,bytes(box.data));
+    const a=JSON.parse(new TextDecoder().decode(plain));
+    let n=0;
+    const norm=t=>String(t).toLowerCase().trim();
+    const apply=(list,map)=>{
+      Object.keys(map||{}).forEach(name=>{
+        const x=list.find(i=>norm(i.name)===norm(name));if(!x)return;
+        const v=map[name];
+        if(v>=1&&v<=31)x.dueDay=v;else delete x.dueDay;
+        n++;
+      });
+    };
+    if(a.dueDays){apply(D.fixedExpenses,a.dueDays.fixed);apply(D.debts,a.dueDays.debts)}
+    D._ajustes=box.id;
+    render();
+    if(n)remSay('Días de pago actualizados: '+n+'. Revísalos en "Días de pago".');
+  }catch(e){}
 }
 function enableReminders(){
   Notification.requestPermission().then(p=>{
